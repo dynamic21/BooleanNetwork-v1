@@ -1,13 +1,77 @@
 #include <iostream>
 #include <fstream>
-#include <ctime>
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <ctime>
+#include <random>
+#include <chrono>
 
+using std::abs;
+using std::clock;
 using std::cout;
 using std::endl;
+using std::mt19937;
+using std::random_device;
 using std::vector;
+
+int binaryToDecimal(vector<bool> inputs)
+{
+    int sum = 0;
+    int power = 1;
+    for (int i = 0; i < inputs.size(); i++)
+    {
+        if (inputs[i])
+        {
+            sum += power;
+        }
+        power *= 2;
+    }
+    return sum;
+}
+
+vector<bool> decimalToBinary(int input)
+{
+    vector<bool> outputs;
+    int power = 1;
+    while (input >= power)
+    {
+        outputs.push_back(input % (2 * power) >= power);
+        power *= 2;
+    }
+    return outputs;
+}
+
+class random
+{
+public:
+    mt19937 gen;
+
+    random()
+    {
+        random_device rd;
+        gen = mt19937(rd() ^ ((std::mt19937::result_type) // seed
+                              std::chrono::duration_cast<std::chrono::seconds>(
+                                  std::chrono::system_clock::now().time_since_epoch())
+                                  .count() +
+                              (std::mt19937::result_type)
+                                  std::chrono::duration_cast<std::chrono::microseconds>(
+                                      std::chrono::high_resolution_clock::now().time_since_epoch())
+                                      .count()));
+    }
+
+    size_t rand(int max = 2, int min = 0) // exclusive
+    {
+        std::mt19937::result_type n;
+        int range = (max - min);
+        while ((n = gen()) > std::mt19937::max() - (std::mt19937::max() - range + 1) % range)
+        {
+        }
+        return n % range + min;
+    }
+};
+
+random newRandom;
 
 class basicNode
 {
@@ -19,7 +83,7 @@ public:
         outputTable = vector<bool>(pow(2, numInputs));
         for (int i = 0; i < outputTable.size(); i++)
         {
-            outputTable[i] = rand() % 2;
+            outputTable[i] = newRandom.rand();
         }
     }
 
@@ -34,126 +98,46 @@ public:
 
     bool evaluateInputs(vector<bool> inputs)
     {
-        int sum = 0;
-        int power = 1;
-        for (int i = 0; i < inputs.size(); i++)
+        return outputTable[binaryToDecimal(inputs)];
+    }
+
+    vector<vector<bool>> backpropagate(vector<bool> inputs, bool goal)
+    {
+        int index = binaryToDecimal(inputs);
+        if (outputTable[index] == goal)
         {
-            if (inputs[i])
-            {
-                sum += power;
-            }
-            power *= 2;
+            return {};
         }
-        return outputTable[sum];
-    }
-
-    void mutate()
-    {
-        int index = rand() % outputTable.size();
-        outputTable[index] = !outputTable[index];
-    }
-
-    int getDecompressedTable()
-    {
-        int sum = 0;
-        int power = 1;
+        outputTable[index] = goal;
+        vector<vector<bool>> outputs;
         for (int i = 0; i < outputTable.size(); i++)
         {
             if (outputTable[i])
             {
-                sum += power;
+                outputs.push_back(decimalToBinary(i));
             }
-            power *= 2;
         }
-        return sum;
+        return outputs;
     }
 };
-
-class componentNode
-{
-public:
-    int outputNode;
-    vector<basicNode> basicNodes;
-    vector<vector<int>> connections;
-
-    componentNode()
-    {
-        basicNode newBasicNode(3);
-        basicNodes.push_back(newBasicNode);
-        outputNode = 0;
-        connections.push_back({-1, -2});
-    }
-
-    bool evaluateInputs(vector<bool> inputs)
-    {
-        return basicNodes[outputNode].evaluateInputs(inputs);
-    }
-
-    void mutate()
-    {
-        basicNodes[outputNode].mutate();
-    }
-};
-
-// int main()
-// {
-//     srand(time(NULL));
-//     int totalCycles = 0;
-//     for (int k = 0; k < 1000; k++)
-//     {
-//         componentNode keptComponentNode;
-//         while (keptComponentNode.basicNodes[0].getDecompressedTable() != 150)
-//         {
-//             totalCycles++;
-//             componentNode newComponentNode;
-//             newComponentNode = keptComponentNode;
-//             newComponentNode.mutate();
-//             bool one = rand() % 2;
-//             bool two = rand() % 2;
-//             bool three = rand() % 2;
-//             bool outcome = one ^ two ^ three;
-//             bool outputOne = newComponentNode.evaluateInputs({one, two, three});
-//             bool outputTwo = keptComponentNode.evaluateInputs({one, two, three});
-//             if (outputOne != outputTwo && outputOne == outcome)
-//             {
-//                 keptComponentNode = newComponentNode;
-//             }
-//         }
-//     }
-//     cout << "It took a total of " << totalCycles << " cycles" << endl;
-// }
 
 int main()
 {
-    srand(time(NULL));
     int totalCycles = 0;
-    for (int k = 0; k < 1000; k++)
+    for (int k = 0; k < 1; k++)
     {
-        componentNode keptComponentNode;
-        while (keptComponentNode.basicNodes[0].getDecompressedTable() != 150)
+        basicNode newBasicNode(3);
+        while (binaryToDecimal(newBasicNode.outputTable) != 150)
         {
-            totalCycles += 8;
-            int scoreOne = 0;
-            int scoreTwo = 0;
-            componentNode newComponentNode;
-            newComponentNode = keptComponentNode;
-            newComponentNode.mutate();
-            int j = 8;
-            while (j--)
-            {
-                bool one = j % 2 > 0;
-                bool two = j % 4 > 1;
-                bool three = j % 8 > 3;
-                bool outcome = one ^ two ^ three;
-                bool outputOne = newComponentNode.evaluateInputs({one, two, three});
-                bool outputTwo = keptComponentNode.evaluateInputs({one, two, three});
-                scoreOne += outputOne == outcome;
-                scoreTwo += outputTwo == outcome;
-            }
-            if (scoreOne > scoreTwo)
-            {
-                keptComponentNode = newComponentNode;
-            }
+            totalCycles++;
+            bool one = newRandom.rand();
+            bool two = newRandom.rand();
+            bool three = newRandom.rand();
+            bool outcome = one ^ two ^ three;
+            bool output = true;
+            bool stateOne = output == outcome;
+            bool stateTwo = output != outcome;
+            newBasicNode.backpropagate({one, two, three}, (stateOne) ? true : false);
         }
     }
     cout << "It took a total of " << totalCycles << " cycles" << endl;
