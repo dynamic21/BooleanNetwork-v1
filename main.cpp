@@ -50,17 +50,17 @@ public:
     random()
     {
         random_device rd;
-        gen = mt19937(rd() ^ ((std::mt19937::result_type) // seed
+        gen = mt19937(rd() ^ ((mt19937::result_type) // seed
                               std::chrono::duration_cast<std::chrono::seconds>(
                                   std::chrono::system_clock::now().time_since_epoch())
                                   .count() +
-                              (std::mt19937::result_type)
+                              (mt19937::result_type)
                                   std::chrono::duration_cast<std::chrono::microseconds>(
                                       std::chrono::high_resolution_clock::now().time_since_epoch())
                                       .count()));
     }
 
-    size_t rand(int max = 2, int min = 0) // exclusive
+    size_t rand(int max = 2, int min = 0) // exclusive ex: (1 - 0)
     {
         std::mt19937::result_type n;
         int range = (max - min);
@@ -100,45 +100,98 @@ public:
     {
         return outputTable[binaryToDecimal(inputs)];
     }
+};
 
-    vector<vector<bool>> backpropagate(vector<bool> inputs, bool goal)
+class componentNode
+{
+public:
+    vector<basicNode> basicNodes;
+    vector<vector<int>> nodeConnections;
+    vector<int> outputIndexes;
+    int numInputs;
+
+    void info()
     {
-        int index = binaryToDecimal(inputs);
-        if (outputTable[index] == goal)
+        for (int i = 0; i < basicNodes.size(); i++)
         {
-            return {};
+            cout << i << ": ";
+            basicNodes[i].info();
         }
-        outputTable[index] = goal;
-        vector<vector<bool>> outputs;
-        for (int i = 0; i < outputTable.size(); i++)
+        cout << endl;
+        // for (int i = 0; i < nodeConnections.size(); i++)
+        // {
+        //     for (int j = 0; j < nodeConnections[i].size(); j++)
+        //     {
+        //         cout << nodeConnections[i][j] << " ";
+        //     }
+        //     cout << endl;
+        // }
+        // cout << endl;
+    }
+
+    componentNode()
+    {
+        for (int i = 0; i < 3; i++)
         {
-            if (outputTable[i])
-            {
-                outputs.push_back(decimalToBinary(i));
-            }
+            basicNode newBasicNode(2);
+            basicNodes.push_back(newBasicNode);
         }
-        return outputs;
+        nodeConnections.push_back({-1, -2});
+        nodeConnections.push_back({-1, 0});
+        nodeConnections.push_back({1, 0});
+        outputIndexes.push_back(2);
+        numInputs = 2;
+    }
+
+    vector<bool> evaluateInputs(vector<bool> inputs)
+    {
+        vector<bool> nodeOutputs(3, false);
+        vector<bool> nodeEvaluated(3, false);
+        vector<bool> output;
+        for (int i = 0; i < outputIndexes.size(); i++)
+        {
+            output.push_back(evaluateNode(&inputs, outputIndexes[i], &nodeOutputs, &nodeEvaluated));
+        }
+        return output;
+    }
+
+    bool evaluateNode(vector<bool> *inputs, int index, vector<bool> *nodeOutputs, vector<bool> *nodeEvaluated)
+    {
+        if (index < 0)
+        {
+            // cout << "start: " << index << " is " << startingInputs[-index - 1] << endl;
+            return (*inputs)[-index - 1];
+        }
+        if ((*nodeEvaluated)[index])
+        {
+            // cout << "done: " << index << " is " << (*nodeOutputs)[index] << endl;
+            return (*nodeOutputs)[index];
+        }
+        vector<bool> childReturns;
+        for (int i = 0; i < nodeConnections[index].size(); i++)
+        {
+            childReturns.push_back(evaluateNode(inputs, nodeConnections[index][i], nodeOutputs, nodeEvaluated));
+        }
+        // cout << "inputs for node " << index << " is ";
+        // for (int i = 0; i < childReturns.size(); i++)
+        // {
+        //     cout << childReturns[i] << " ";
+        // }
+        // cout << endl;
+        (*nodeEvaluated)[index] = true;
+        (*nodeOutputs)[index] = basicNodes[index].evaluateInputs(childReturns);
+        // cout << "solved: " << index << " is " << (*nodeOutputs)[index] << endl;
+        return (*nodeOutputs)[index];
     }
 };
 
 int main()
 {
-    int totalCycles = 0;
-    for (int k = 0; k < 1; k++)
+    componentNode newComponentNode;
+    newComponentNode.info();
+    vector<bool> outputs = newComponentNode.evaluateInputs({1, 0});
+    for (int i = 0; i < outputs.size(); i++)
     {
-        basicNode newBasicNode(3);
-        while (binaryToDecimal(newBasicNode.outputTable) != 150)
-        {
-            totalCycles++;
-            bool one = newRandom.rand();
-            bool two = newRandom.rand();
-            bool three = newRandom.rand();
-            bool outcome = one ^ two ^ three;
-            bool output = true;
-            bool stateOne = output == outcome;
-            bool stateTwo = output != outcome;
-            newBasicNode.backpropagate({one, two, three}, (stateOne) ? true : false);
-        }
+        cout << outputs[i] << endl;
     }
-    cout << "It took a total of " << totalCycles << " cycles" << endl;
 }
